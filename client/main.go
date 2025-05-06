@@ -27,7 +27,7 @@ var connectSound []byte
 //go:embed internal/assets/message.wav
 var messageSound []byte
 
-const currentVersion = "v25.5.6.1"
+const currentVersion = "v25.5.6.2"
 
 const updateURL = "https://github.com/TonmoyTalukder/omsay-terminal-chat/releases/latest/download/omsay.exe"
 
@@ -144,12 +144,14 @@ func discoverServer() string {
 	buf := make([]byte, 1024)
 	n, _, err := udpConn.ReadFromUDP(buf)
 	if err != nil {
-		color.Yellow("⚠️  No server discovered in LAN. Enter server IP manually or press Enter to host locally:")
+		color.Yellow("⚠️  No server discovered in LAN. Please enter the IP address of the OMSAY server:")
 		scanner := bufio.NewScanner(os.Stdin)
 		scanner.Scan()
 		input := strings.TrimSpace(scanner.Text())
+
 		if input == "" {
-			return getLocalIP()
+			color.Red("❌ No server provided. Exiting.")
+			os.Exit(1) // or return ""
 		}
 		return input
 	}
