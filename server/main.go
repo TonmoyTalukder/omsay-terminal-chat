@@ -32,15 +32,35 @@ func main() {
 	}
 }
 
+func genUsername(addr string) string {
+	hash := 0
+	for _, c := range addr {
+		hash = int(c) + ((hash << 5) - hash)
+	}
+
+	prefixes := []string{"Ξ", "λ", "Ω", "ψ", "Σ", "∇", "π", "δ"}
+	emojis := []string{"🧬", "⚡", "🛸", "🧠", "🚀", "👾", "💻", "🌐"}
+
+	emoji := emojis[hash%len(emojis)]
+	prefix := prefixes[(hash/len(emojis))%len(prefixes)]
+
+	// Extract a funky hex-based suffix
+	hex := fmt.Sprintf("%08X", hash)
+	codename := hex[len(hex)-4:]
+
+	return fmt.Sprintf("%s%s_%s", emoji, prefix, codename)
+}
+
 func handleClient(conn net.Conn) {
 	defer conn.Close()
 	addr := conn.RemoteAddr().String()
+	username := genUsername(addr)
 
 	mu.Lock()
-	clients[conn] = addr
+	clients[conn] = username
 	mu.Unlock()
 
-	joinMsg := fmt.Sprintf("📡 %s joined OMSAY server\n", addr)
+	joinMsg := fmt.Sprintf("📡 %s joined OMSAY server\n", username)
 	broadcast(joinMsg, nil) // broadcast to all, including sender
 	fmt.Print(joinMsg)
 
@@ -57,7 +77,7 @@ func handleClient(conn net.Conn) {
 	delete(clients, conn)
 	mu.Unlock()
 
-	leaveMsg := fmt.Sprintf("🚪 %s left the chat\n", addr)
+	leaveMsg := fmt.Sprintf("🚪 %s left the chat\n", username)
 	broadcast(leaveMsg, nil)
 	fmt.Print(leaveMsg)
 }

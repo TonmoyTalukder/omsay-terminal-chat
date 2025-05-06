@@ -1,4 +1,4 @@
-# OMSAY - LAN Chat
+# OMSAY - Terminal Chat Server
 
 OMSAY is a terminal-based local network chat application with sound, effects, and elegant terminal UI.
 
@@ -17,7 +17,12 @@ OMSAY is a terminal-based local network chat application with sound, effects, an
 go run server/main.go
 ```
 
-1. Start the client:
+2. Start the client:
 ```bash
 go run client/main.go
+```
+
+3. Build the client:
+```bash
+go build -o omsay.exe
 ```

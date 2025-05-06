@@ -5,8 +5,11 @@ import (
 	"bytes"
 	_ "embed"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -24,10 +27,70 @@ var connectSound []byte
 //go:embed internal/assets/message.wav
 var messageSound []byte
 
+const currentVersion = "v25.5.6.1"
+
+const updateURL = "https://github.com/TonmoyTalukder/omsay-terminal-chat/releases/latest/download/omsay.exe"
+
+func updateExecutable(url string) error {
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Download to a temp file
+	tmpFile := "omsay_new.exe"
+	out, err := os.Create(tmpFile)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		return err
+	}
+
+	// Replace current binary
+	currExe, _ := os.Executable()
+	err = os.Rename(tmpFile, currExe)
+	return err
+}
+
+func checkForUpdate() {
+	resp, err := http.Get("https://raw.githubusercontent.com/TonmoyTalukder/omsay-terminal-chat/main/client/version.txt")
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+
+	latest, _ := io.ReadAll(resp.Body)
+	latestVersion := strings.TrimSpace(string(latest))
+
+	if latestVersion != currentVersion {
+		color.Yellow("🚀 New version available: %s (you have %s)", latestVersion, currentVersion)
+		fmt.Print("⚙️  Updating OMSAY... ")
+
+		err := updateExecutable(updateURL)
+		if err != nil {
+			color.Red("❌ Update failed: %v", err)
+			return
+		}
+
+		color.Green("✅ Updated successfully! Restarting...\n")
+		exec.Command("omsay.exe").Start()
+		os.Exit(0)
+	}
+}
+
 func main() {
 	clearTerminal()
+	checkForUpdate()
 	printHeader()
 	showLoading("Starting OMSAY Chat Server", 2*time.Second)
+
+	// Speaker init once
+	speaker.Init(beep.SampleRate(44100), 44100/10) // standard rate
 
 	serverAddr := discoverServer()
 	conn, err := net.Dial("tcp", serverAddr+":8000")
@@ -148,6 +211,14 @@ func typeWriter(text string, delay time.Duration) {
 		fmt.Printf("%c", ch)
 		time.Sleep(delay)
 	}
+	fmt.Print(" ") // trailing space
+	// Simulate blinking cursor
+	for i := 0; i < 3; i++ {
+		fmt.Print("_")
+		time.Sleep(150 * time.Millisecond)
+		fmt.Print("\b \b")
+		time.Sleep(150 * time.Millisecond)
+	}
 	fmt.Println()
 }
 
@@ -173,13 +244,13 @@ func typeWriter(text string, delay time.Duration) {
 //}
 
 func playEmbeddedSound(data []byte) {
-	streamer, format, err := wav.Decode(bytes.NewReader(data))
+	streamer, _, err := wav.Decode(bytes.NewReader(data))
 	if err != nil {
 		return
 	}
 	defer streamer.Close()
 
-	speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
+	//speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
 	done := make(chan bool)
 	speaker.Play(beep.Seq(streamer, beep.Callback(func() {
 		done <- true
