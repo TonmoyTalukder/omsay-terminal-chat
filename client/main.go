@@ -27,7 +27,9 @@ var connectSound []byte
 //go:embed internal/assets/message.wav
 var messageSound []byte
 
-const currentVersion = "v25.5.6.2"
+var myUsername string
+
+const currentVersion = "v25.5.6.3"
 
 const updateURL = "https://github.com/TonmoyTalukder/omsay-terminal-chat/releases/latest/download/omsay.exe"
 
@@ -109,7 +111,12 @@ func main() {
 
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
-		fmt.Print(color.HiBlueString("You » "))
+		if myUsername != "" {
+			fmt.Print(color.HiBlueString(myUsername + " » "))
+		} else {
+			fmt.Print(color.HiBlueString("You » "))
+		}
+
 		if !scanner.Scan() {
 			break
 		}
@@ -178,12 +185,26 @@ func readMessages(conn net.Conn) {
 			return
 		}
 
+		msg = strings.TrimSpace(msg)
+
+		if strings.HasPrefix(msg, "[USERNAME]") {
+			myUsername = strings.TrimPrefix(msg, "[USERNAME]")
+			continue // don't print
+		}
+
 		timestamp := time.Now().Format("15:04:05")
-		styledMsg := fmt.Sprintf("[%s] %s", color.HiBlackString(timestamp), color.HiMagentaString(strings.TrimSpace(msg)))
-		typeWriter(styledMsg, 2*time.Millisecond)
-		//playSound("assets/message.wav")
+
+		// Style differently if it's my own message
+		if strings.Contains(msg, myUsername) {
+			styledMsg := fmt.Sprintf("[%s] %s", color.HiBlackString(timestamp), color.HiGreenString(msg))
+			typeWriter(styledMsg, 2*time.Millisecond)
+		} else {
+			styledMsg := fmt.Sprintf("[%s] %s", color.HiBlackString(timestamp), color.HiMagentaString(msg))
+			typeWriter(styledMsg, 2*time.Millisecond)
+		}
+
 		playEmbeddedSound(messageSound)
-		showNotification("OMSAY", strings.TrimSpace(msg))
+		showNotification("OMSAY", msg)
 	}
 }
 

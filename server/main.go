@@ -58,6 +58,7 @@ func handleClient(conn net.Conn) {
 
 	mu.Lock()
 	clients[conn] = username
+	conn.Write([]byte("[USERNAME]" + username + "\n"))
 	mu.Unlock()
 
 	joinMsg := fmt.Sprintf("📡 %s joined OMSAY server\n", username)
