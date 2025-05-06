@@ -178,8 +178,6 @@ func getLocalIP() string {
 
 func readMessages(conn net.Conn) {
 	reader := bufio.NewReader(conn)
-	var username string
-
 	for {
 		msg, err := reader.ReadString('\n')
 		if err != nil {
@@ -188,40 +186,27 @@ func readMessages(conn net.Conn) {
 		}
 		msg = strings.TrimSpace(msg)
 
-		// Handle initial USERNAME message from server
+		// Handle username assignment
 		if strings.HasPrefix(msg, "[USERNAME]") {
-			username = strings.TrimPrefix(msg, "[USERNAME]")
-			color.Green("✓ Assigned username: %s", username)
+			myUsername = strings.TrimPrefix(msg, "[USERNAME]")
+			color.Green("✓ Assigned username: %s", myUsername)
 			continue
 		}
 
-		// SYSTEM MESSAGES from server
+		timestamp := time.Now().Format("15:04:05")
+
+		// Handle system messages
 		if strings.HasPrefix(msg, "[SYSTEM]") {
 			systemMsg := strings.TrimPrefix(msg, "[SYSTEM]")
-			timestamp := time.Now().Format("15:04:05")
-			fmt.Printf("[%s] %s\n", color.HiBlackString(timestamp), color.YellowString(systemMsg))
+			fmt.Printf("[%s] %s\n", color.HiBlackString(timestamp), systemMsg)
 			continue
 		}
 
-		// USER MESSAGES
-		timestamp := time.Now().Format("15:04:05")
-		displayMsg := msg
-
-		if strings.Contains(msg, " » ") {
-			senderEnd := strings.Index(msg, " » ")
-			if senderEnd > 0 {
-				sender := msg[:senderEnd]
-				rest := msg[senderEnd:]
-
-				if sender == username {
-					displayMsg = color.GreenString("You") + color.HiMagentaString(rest)
-				} else {
-					displayMsg = color.CyanString(sender) + color.HiMagentaString(rest)
-				}
-			}
-		}
-
-		fmt.Printf("[%s] %s\n", color.HiBlackString(timestamp), displayMsg)
+		// Regular user message with username
+		fmt.Printf("[%s] 📡 %s : %s\n",
+			color.HiBlackString(timestamp),
+			color.CyanString(myUsername),
+			msg)
 		playEmbeddedSound(messageSound)
 		showNotification("OMSAY", msg)
 	}
