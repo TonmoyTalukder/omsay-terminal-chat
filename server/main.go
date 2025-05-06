@@ -61,8 +61,9 @@ func handleClient(conn net.Conn) {
 	conn.Write([]byte("[USERNAME]" + username + "\n"))
 	mu.Unlock()
 
-	joinMsg := fmt.Sprintf("📡 %s joined OMSAY server\n", username)
-	broadcast(joinMsg, nil) // broadcast to all, including sender
+	// ⬇️ Mark system message
+	joinMsg := fmt.Sprintf("[SYSTEM] 📡 %s joined OMSAY server\n", username)
+	broadcast(joinMsg, nil)
 	fmt.Print(joinMsg)
 
 	reader := bufio.NewReader(conn)
@@ -78,7 +79,8 @@ func handleClient(conn net.Conn) {
 	delete(clients, conn)
 	mu.Unlock()
 
-	leaveMsg := fmt.Sprintf("🚪 %s left the chat\n", username)
+	// ⬇️ Mark system message
+	leaveMsg := fmt.Sprintf("[SYSTEM] 🚪 %s left the chat\n", username)
 	broadcast(leaveMsg, nil)
 	fmt.Print(leaveMsg)
 }

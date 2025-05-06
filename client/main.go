@@ -29,7 +29,7 @@ var messageSound []byte
 
 var myUsername string
 
-const currentVersion = "v25.5.6.3"
+const currentVersion = "v25.5.6.4"
 
 const updateURL = "https://github.com/TonmoyTalukder/omsay-terminal-chat/releases/latest/download/omsay.exe"
 
@@ -178,31 +178,50 @@ func getLocalIP() string {
 
 func readMessages(conn net.Conn) {
 	reader := bufio.NewReader(conn)
+	var username string
+
 	for {
 		msg, err := reader.ReadString('\n')
 		if err != nil {
 			color.Red("\nDisconnected from OMSAY server.")
 			return
 		}
-
 		msg = strings.TrimSpace(msg)
 
+		// Handle initial USERNAME message from server
 		if strings.HasPrefix(msg, "[USERNAME]") {
-			myUsername = strings.TrimPrefix(msg, "[USERNAME]")
-			continue // don't print
+			username = strings.TrimPrefix(msg, "[USERNAME]")
+			color.Green("✓ Assigned username: %s", username)
+			continue
 		}
 
+		// SYSTEM MESSAGES from server
+		if strings.HasPrefix(msg, "[SYSTEM]") {
+			systemMsg := strings.TrimPrefix(msg, "[SYSTEM]")
+			timestamp := time.Now().Format("15:04:05")
+			fmt.Printf("[%s] %s\n", color.HiBlackString(timestamp), color.YellowString(systemMsg))
+			continue
+		}
+
+		// USER MESSAGES
 		timestamp := time.Now().Format("15:04:05")
+		displayMsg := msg
 
-		// Style differently if it's my own message
-		if strings.Contains(msg, myUsername) {
-			styledMsg := fmt.Sprintf("[%s] %s", color.HiBlackString(timestamp), color.HiGreenString(msg))
-			typeWriter(styledMsg, 2*time.Millisecond)
-		} else {
-			styledMsg := fmt.Sprintf("[%s] %s", color.HiBlackString(timestamp), color.HiMagentaString(msg))
-			typeWriter(styledMsg, 2*time.Millisecond)
+		if strings.Contains(msg, " » ") {
+			senderEnd := strings.Index(msg, " » ")
+			if senderEnd > 0 {
+				sender := msg[:senderEnd]
+				rest := msg[senderEnd:]
+
+				if sender == username {
+					displayMsg = color.GreenString("You") + color.HiMagentaString(rest)
+				} else {
+					displayMsg = color.CyanString(sender) + color.HiMagentaString(rest)
+				}
+			}
 		}
 
+		fmt.Printf("[%s] %s\n", color.HiBlackString(timestamp), displayMsg)
 		playEmbeddedSound(messageSound)
 		showNotification("OMSAY", msg)
 	}
