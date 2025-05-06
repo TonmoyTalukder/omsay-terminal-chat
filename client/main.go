@@ -1,3 +1,4 @@
+// OMSAY Client
 package main
 
 import (
@@ -5,12 +6,14 @@ import (
 	"bytes"
 	_ "embed"
 	"fmt"
+	"golang.org/x/term"
 	"io"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -108,14 +111,12 @@ func main() {
 	fmt.Println()
 
 	go readMessages(conn)
-
+	showTypingPrompt()
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
-		if myUsername != "" {
-			fmt.Print(color.HiBlueString(myUsername + " » "))
-		} else {
-			fmt.Print(color.HiBlueString("You » "))
-		}
+		//fmt.Println()
+		//timestamp := time.Now().Format("15:04:05")
+		//fmt.Printf("[%s] 📡 %s : ", color.HiBlackString(timestamp), color.HiBlueString(myUsername))
 
 		if !scanner.Scan() {
 			break
@@ -123,17 +124,47 @@ func main() {
 		text := scanner.Text()
 		if strings.TrimSpace(text) != "" {
 			conn.Write([]byte(text + "\n"))
+		} else {
+			typeWriter("...", 75*time.Millisecond)
 		}
+		showTypingPrompt()
 	}
 }
 
+func getTerminalWidth() int {
+	width, _, err := term.GetSize(int(syscall.Stdout))
+	if err != nil {
+		return 80 // fallback
+	}
+	return width
+}
+
+//func printHeader() {
+//	fmt.Print("\033[38;2;244;120;48m")
+//	fmt.Println("")
+//	fmt.Println("╔════════════════════════════════════╗")
+//	fmt.Println("║           WELCOME TO OMSAY         ║")
+//	fmt.Println("╚════════════════════════════════════╝")
+//	fmt.Println("")
+//	fmt.Print("\033[0m")
+//}
+
 func printHeader() {
-	fmt.Print("\033[38;2;244;120;48m")
-	fmt.Println("")
-	fmt.Println("╔════════════════════════════════════╗")
-	fmt.Println("║           WELCOME TO OMSAY         ║")
-	fmt.Println("╚════════════════════════════════════╝")
-	fmt.Println("")
+	width := getTerminalWidth()
+	title := " WELCOME TO OMSAY "
+	border := "═"
+	side := "║"
+
+	// Ensure center title
+	padding := (width - len(title) - 2) / 2 // -2 for side bars
+	top := "╔" + strings.Repeat(border, width-2) + "╗"
+	mid := side + strings.Repeat(" ", padding) + title + strings.Repeat(" ", width-2-len(title)-padding) + side
+	bot := "╚" + strings.Repeat(border, width-2) + "╝"
+
+	fmt.Print("\033[38;2;244;120;48m") // orange color
+	fmt.Println(top)
+	fmt.Println(mid)
+	fmt.Println(bot)
 	fmt.Print("\033[0m")
 }
 
@@ -189,7 +220,8 @@ func readMessages(conn net.Conn) {
 		// Handle username assignment
 		if strings.HasPrefix(msg, "[USERNAME]") {
 			myUsername = strings.TrimPrefix(msg, "[USERNAME]")
-			color.Green("✓ Assigned username: %s", myUsername)
+			fmt.Printf("✓ Assigned username: %s\n", color.HiMagentaString(myUsername))
+			showTypingPrompt()
 			continue
 		}
 
@@ -198,15 +230,23 @@ func readMessages(conn net.Conn) {
 		// Handle system messages
 		if strings.HasPrefix(msg, "[SYSTEM]") {
 			systemMsg := strings.TrimPrefix(msg, "[SYSTEM]")
-			fmt.Printf("[%s] %s\n", color.HiBlackString(timestamp), systemMsg)
+			fmt.Printf("[%s] 📡 %s\n", color.HiBlackString(timestamp), color.YellowString(systemMsg))
+			showTypingPrompt()
 			continue
 		}
 
 		// Regular user message with username
+		usernamePart := extractUsername(msg)
+		messageBody := extractMessageBody(msg)
+
 		fmt.Printf("[%s] 📡 %s : %s\n",
 			color.HiBlackString(timestamp),
-			color.CyanString(myUsername),
-			msg)
+			color.CyanString(usernamePart),
+			messageBody)
+
+		if usernamePart != myUsername {
+			showTypingPrompt()
+		}
 		playEmbeddedSound(messageSound)
 		showNotification("OMSAY", msg)
 	}
@@ -249,27 +289,6 @@ func typeWriter(text string, delay time.Duration) {
 	fmt.Println()
 }
 
-//func playSound(filePath string) {
-//	f, err := os.Open(filePath)
-//	if err != nil {
-//		return
-//	}
-//	defer f.Close()
-//
-//	streamer, format, err := wav.Decode(f)
-//	if err != nil {
-//		return
-//	}
-//	defer streamer.Close()
-//
-//	speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
-//	done := make(chan bool)
-//	speaker.Play(beep.Seq(streamer, beep.Callback(func() {
-//		done <- true
-//	})))
-//	<-done
-//}
-
 func playEmbeddedSound(data []byte) {
 	streamer, _, err := wav.Decode(bytes.NewReader(data))
 	if err != nil {
@@ -283,4 +302,23 @@ func playEmbeddedSound(data []byte) {
 		done <- true
 	})))
 	<-done
+}
+
+func extractUsername(msg string) string {
+	if idx := strings.Index(msg, ":"); idx != -1 {
+		return strings.TrimSpace(msg[:idx])
+	}
+	return myUsername
+}
+
+func extractMessageBody(msg string) string {
+	if idx := strings.Index(msg, ":"); idx != -1 {
+		return strings.TrimSpace(msg[idx+1:])
+	}
+	return msg
+}
+
+func showTypingPrompt() {
+	timestamp := time.Now().Format("15:04:05")
+	fmt.Printf("[%s] 📡 %s : ", color.HiBlackString(timestamp), color.HiBlueString(myUsername))
 }

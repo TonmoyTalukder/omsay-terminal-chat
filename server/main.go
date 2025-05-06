@@ -112,14 +112,46 @@ func handleDiscovery() {
 }
 
 func getLocalIP() string {
-	interfaces, _ := net.Interfaces()
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return "127.0.0.1"
+	}
+
 	for _, iface := range interfaces {
-		addrs, _ := iface.Addrs()
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue // interface down or loopback
+		}
+
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+
 		for _, addr := range addrs {
-			if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
-				return ipnet.IP.String()
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
 			}
+
+			if ip == nil || ip.IsLoopback() {
+				continue
+			}
+
+			ip = ip.To4()
+			if ip == nil {
+				continue // not an ipv4 address
+			}
+
+			if !ip.IsPrivate() {
+				continue // ignore public IPs, prefer local
+			}
+
+			return ip.String()
 		}
 	}
+
 	return "127.0.0.1"
 }

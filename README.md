@@ -2,6 +2,9 @@
 
 OMSAY is a terminal-based local network chat application with sound, effects, and elegant terminal UI.
 
+
+<img src="assets/OMSAY.png" width="300" alt="OMSAY"/>
+
 ## Features
 
 - Auto-discovery of server via UDP
