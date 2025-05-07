@@ -16,13 +16,14 @@ func main() {
 	newFile := os.Args[1]
 	targetExe := os.Args[2]
 
-	// Wait for the main app to exit
-	for i := 0; i < 10; i++ {
+	// Wait for original .exe to fully release (e.g., from Windows file lock)
+	for i := 0; i < 20; i++ {
 		err := os.Remove(targetExe)
 		if err == nil {
 			break
 		}
-		time.Sleep(500 * time.Millisecond)
+		fmt.Println("⏳ Waiting to release lock on", targetExe)
+		time.Sleep(1 * time.Second)
 	}
 
 	// Rename the new version to replace the target

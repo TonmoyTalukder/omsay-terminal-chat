@@ -32,7 +32,7 @@ var messageSound []byte
 
 var myUsername string
 
-const currentVersion = "v25.5.7.4"
+const currentVersion = "v25.5.7.5"
 
 const updateURL = "https://github.com/TonmoyTalukder/omsay-terminal-chat/releases/latest/download/omsay.exe"
 
@@ -64,6 +64,7 @@ func updateExecutable(url string) error {
 	}
 
 	fmt.Println("🔁 Restarting via updater...")
+	time.Sleep(500 * time.Millisecond)
 	os.Exit(0) // Exit current app
 
 	return nil
@@ -240,19 +241,27 @@ func readMessages(conn net.Conn) {
 		if strings.HasPrefix(msg, "[SYSTEM]") {
 			systemMsg := strings.TrimPrefix(msg, "[SYSTEM]")
 			fmt.Printf("[%s] 📡 %s\n", color.HiBlackString(timestamp), color.YellowString(systemMsg))
+			showTypingPrompt()
 		} else {
-			usernamePart := extractUsername(msg)
-			messageBody := extractMessageBody(msg)
-			fmt.Printf("[%s] 📡 %s : %s\n",
-				color.HiBlackString(timestamp),
-				color.CyanString(usernamePart),
-				messageBody)
-			//if usernamePart != myUsername {
-			//	playEmbeddedSound(messageSound)
-			//	showNotification("OMSAY", msg)
-			//}
-			playEmbeddedSound(messageSound)
-			showNotification("OMSAY", msg)
+			parts := strings.SplitN(msg, ":", 2)
+			if len(parts) == 2 {
+				usernamePart := strings.TrimSpace(parts[0])
+				messageBody := strings.TrimSpace(parts[1])
+
+				fmt.Printf("[%s] 📡 %s : %s\n",
+					color.HiBlackString(timestamp),
+					color.CyanString(usernamePart),
+					messageBody)
+
+				if usernamePart != myUsername {
+					playEmbeddedSound(messageSound)
+					showNotification("OMSAY", fmt.Sprintf("%s: %s", usernamePart, messageBody))
+				}
+			} else {
+				fmt.Printf("[%s] 📡 %s\n", color.HiBlackString(timestamp), msg)
+			}
+			//playEmbeddedSound(messageSound)
+			//showNotification("OMSAY", msg)
 		}
 
 		// Re-display the prompt after any incoming message
@@ -312,16 +321,32 @@ func playEmbeddedSound(data []byte) {
 	<-done
 }
 
+//func extractUsername(msg string) string {
+//	if idx := strings.Index(msg, ":"); idx != -1 {
+//		return strings.TrimSpace(msg[:idx])
+//	}
+//	return myUsername
+//}
+
 func extractUsername(msg string) string {
-	if idx := strings.Index(msg, ":"); idx != -1 {
-		return strings.TrimSpace(msg[:idx])
+	parts := strings.SplitN(msg, ":", 2)
+	if len(parts) > 0 {
+		return strings.TrimSpace(parts[0])
 	}
-	return myUsername
+	return "Unknown"
 }
 
+//func extractMessageBody(msg string) string {
+//	if idx := strings.Index(msg, ":"); idx != -1 {
+//		return strings.TrimSpace(msg[idx+1:])
+//	}
+//	return msg
+//}
+
 func extractMessageBody(msg string) string {
-	if idx := strings.Index(msg, ":"); idx != -1 {
-		return strings.TrimSpace(msg[idx+1:])
+	parts := strings.SplitN(msg, ":", 2)
+	if len(parts) > 1 {
+		return strings.TrimSpace(parts[1])
 	}
 	return msg
 }

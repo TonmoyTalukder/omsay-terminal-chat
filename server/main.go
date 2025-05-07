@@ -7,6 +7,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"time"
 )
 
 var clients = make(map[net.Conn]string)
@@ -72,7 +73,14 @@ func handleClient(conn net.Conn) {
 		if err != nil {
 			break
 		}
-		broadcast(msg, conn)
+		msg = strings.TrimSpace(msg)
+		if msg == "" {
+			continue
+		}
+		timestamp := time.Now().Format("15:04:05")
+		formatted := fmt.Sprintf("[%s] 📡 %s : %s\n", timestamp, username, msg)
+		broadcast(formatted, conn)
+		//broadcast(fmt.Sprintf("%s: %s\n", username, msg), conn)
 	}
 
 	mu.Lock()

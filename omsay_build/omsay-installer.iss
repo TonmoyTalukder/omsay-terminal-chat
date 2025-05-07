@@ -1,8 +1,8 @@
 ; OMSAY Chat Client Installer Script
 [Setup]
 AppName=OMSAY
-AppVersion=25.5.7.4
-DefaultDirName={commonpf}\OMSAY
+AppVersion=25.5.7.5
+DefaultDirName=C:\Users\YourName\Apps\OMSAY
 DefaultGroupName=OMSAY
 PrivilegesRequired=admin
 UninstallDisplayIcon={app}\omsay.exe
