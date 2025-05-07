@@ -1,7 +1,7 @@
 ; OMSAY Chat Client Installer Script
 [Setup]
 AppName=OMSAY
-AppVersion=25.5.7.1
+AppVersion=25.5.7.3
 DefaultDirName={commonpf}\OMSAY
 DefaultGroupName=OMSAY
 PrivilegesRequired=admin
@@ -14,6 +14,7 @@ SetupIconFile=C:\omsay_build\omsay.ico
 
 [Files]
 Source: "C:\omsay_build\omsay.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "C:\omsay_build\omsay-updater.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "C:\omsay_build\omsay.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
