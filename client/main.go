@@ -32,7 +32,7 @@ var messageSound []byte
 
 var myUsername string
 
-const currentVersion = "v25.5.6.4"
+const currentVersion = "v25.5.7.1"
 
 const updateURL = "https://github.com/TonmoyTalukder/omsay-terminal-chat/releases/latest/download/omsay.exe"
 

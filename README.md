@@ -27,5 +27,5 @@ go run client/main.go
 
 3. Build the client:
 ```bash
-go build -o omsay.exe
+go build -o omsay.exe main.go
 ```
