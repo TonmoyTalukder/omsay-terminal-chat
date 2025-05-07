@@ -32,7 +32,7 @@ var messageSound []byte
 
 var myUsername string
 
-const currentVersion = "v25.5.7.1"
+const currentVersion = "v25.5.7.2"
 
 const updateURL = "https://github.com/TonmoyTalukder/omsay-terminal-chat/releases/latest/download/omsay.exe"
 
@@ -217,6 +217,9 @@ func readMessages(conn net.Conn) {
 		}
 		msg = strings.TrimSpace(msg)
 
+		// Move cursor up and clear the current line
+		fmt.Print("\r\033[K")
+
 		// Handle username assignment
 		if strings.HasPrefix(msg, "[USERNAME]") {
 			myUsername = strings.TrimPrefix(msg, "[USERNAME]")
@@ -227,28 +230,24 @@ func readMessages(conn net.Conn) {
 
 		timestamp := time.Now().Format("15:04:05")
 
-		// Handle system messages
 		if strings.HasPrefix(msg, "[SYSTEM]") {
 			systemMsg := strings.TrimPrefix(msg, "[SYSTEM]")
 			fmt.Printf("[%s] 📡 %s\n", color.HiBlackString(timestamp), color.YellowString(systemMsg))
-			showTypingPrompt()
-			continue
+		} else {
+			usernamePart := extractUsername(msg)
+			messageBody := extractMessageBody(msg)
+			fmt.Printf("[%s] 📡 %s : %s\n",
+				color.HiBlackString(timestamp),
+				color.CyanString(usernamePart),
+				messageBody)
+			if usernamePart != myUsername {
+				playEmbeddedSound(messageSound)
+				showNotification("OMSAY", msg)
+			}
 		}
 
-		// Regular user message with username
-		usernamePart := extractUsername(msg)
-		messageBody := extractMessageBody(msg)
-
-		fmt.Printf("[%s] 📡 %s : %s\n",
-			color.HiBlackString(timestamp),
-			color.CyanString(usernamePart),
-			messageBody)
-
-		if usernamePart != myUsername {
-			showTypingPrompt()
-		}
-		playEmbeddedSound(messageSound)
-		showNotification("OMSAY", msg)
+		// Re-display the prompt after any incoming message
+		showTypingPrompt()
 	}
 }
 
