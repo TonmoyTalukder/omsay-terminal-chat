@@ -32,7 +32,7 @@ var messageSound []byte
 
 var myUsername string
 
-const currentVersion = "v25.5.7.3"
+const currentVersion = "v25.5.7.4"
 
 const updateURL = "https://github.com/TonmoyTalukder/omsay-terminal-chat/releases/latest/download/omsay.exe"
 
@@ -247,10 +247,12 @@ func readMessages(conn net.Conn) {
 				color.HiBlackString(timestamp),
 				color.CyanString(usernamePart),
 				messageBody)
-			if usernamePart != myUsername {
-				playEmbeddedSound(messageSound)
-				showNotification("OMSAY", msg)
-			}
+			//if usernamePart != myUsername {
+			//	playEmbeddedSound(messageSound)
+			//	showNotification("OMSAY", msg)
+			//}
+			playEmbeddedSound(messageSound)
+			showNotification("OMSAY", msg)
 		}
 
 		// Re-display the prompt after any incoming message
