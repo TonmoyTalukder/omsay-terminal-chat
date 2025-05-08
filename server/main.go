@@ -61,33 +61,31 @@ func handleClient(conn net.Conn) {
 	conn.Write([]byte("[USERNAME]" + username + "\n"))
 	mu.Unlock()
 
-	// ⬇️ Mark system message
-	joinMsg := fmt.Sprintf("[SYSTEM] joined OMSAY server\n", username)
+	joinMsg := fmt.Sprintf("%s joined OMSAY server\n", username)
 	broadcast(joinMsg, nil)
 	fmt.Print(joinMsg)
 
 	reader := bufio.NewReader(conn)
+
 	for {
 		msg, err := reader.ReadString('\n')
 		if err != nil {
+			fmt.Println("[DEBUG] Client read error:", err)
 			break
 		}
 		msg = strings.TrimSpace(msg)
 		if msg == "" {
 			continue
 		}
-		//timestamp := time.Now().Format("15:04:05")
 		formatted := fmt.Sprintf("%s : %s\n", username, msg)
 		broadcast(formatted, conn)
-		//broadcast(fmt.Sprintf("%s: %s\n", username, msg), conn)
 	}
 
 	mu.Lock()
 	delete(clients, conn)
 	mu.Unlock()
 
-	// ⬇️ Mark system message
-	leaveMsg := fmt.Sprintf("[SYSTEM] 🚪 %s left the chat\n", username)
+	leaveMsg := fmt.Sprintf("%s left the chat\n", username)
 	broadcast(leaveMsg, nil)
 	fmt.Print(leaveMsg)
 }

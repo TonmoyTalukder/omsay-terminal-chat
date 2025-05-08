@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -32,7 +33,7 @@ var messageSound []byte
 
 var myUsername string
 
-const currentVersion = "v25.5.7.5"
+const currentVersion = "v25.5.9.0"
 
 const updateURL = "https://github.com/TonmoyTalukder/omsay-terminal-chat/releases/latest/download/omsay.exe"
 
@@ -100,41 +101,68 @@ func main() {
 	clearTerminal()
 	checkForUpdate()
 	printHeader()
+	showLoading("MEET CREATOR: TONMOY TALUKDER", 1*time.Second)
 	showLoading("Starting OMSAY Chat Server", 2*time.Second)
 
 	// Speaker init once
 	speaker.Init(beep.SampleRate(44100), 44100/10) // standard rate
 
+	// Discover or start server
 	serverAddr := discoverServer()
-	conn, err := net.Dial("tcp", serverAddr+":8000")
+
+	// Establish a connection to the discovered or locally started server and Retry dialing up to 5 times
+	var conn net.Conn
+	var err error
+	for i := 0; i < 5; i++ {
+		color.Yellow("🔌 Attempting to connect to %s:8000...", serverAddr)
+		conn, err = net.DialTimeout("tcp", serverAddr+":8000", 2*time.Second)
+		if err != nil {
+			color.Red("❌ Could not connect to server: %v", err)
+			time.Sleep(1 * time.Second) // optional: wait before retry
+			continue                    // 🔁 Retry again
+		}
+		color.Green("✅ Connected. Entering chat mode...")
+		time.Sleep(1 * time.Second)
+		break // ✅ Only break on success
+	}
 	if err != nil {
-		color.Red("Could not connect to server: %v", err)
+		color.Red("❌ Server didn't respond after multiple attempts.")
+		color.Red("❌ Could not connect to server at [%s]: %v", serverAddr, err)
+		fmt.Println("Please try restarting OMSAY or check your network.")
 		return
 	}
+
 	defer conn.Close()
 
-	//playSound("assets/connect.wav")
+	// Play a sound indicating connection is made
 	playEmbeddedSound(connectSound)
-	color.HiGreen("\nConnected to OMSAY server at [%s]", serverAddr)
+	color.HiGreen("\n✅ Connected to OMSAY server at [%s]", serverAddr)
 	fmt.Println()
 
+	// Start reading messages in the background
 	go readMessages(conn)
+
+	// Start chat interface
 	showTypingPrompt()
 	scanner := bufio.NewScanner(os.Stdin)
-	for {
-		//fmt.Println()
-		//timestamp := time.Now().Format("15:04:05")
-		//fmt.Printf("[%s] 📡 %s : ", color.HiBlackString(timestamp), color.HiBlueString(myUsername))
 
+	for {
+		// Wait for user input
 		if !scanner.Scan() {
 			break
 		}
+
+		// Read user input text
 		text := scanner.Text()
 		if strings.TrimSpace(text) != "" {
+			// Send the typed text to the server
 			conn.Write([]byte(text + "\n"))
 		} else {
+			// Handle empty input
 			typeWriter("...", 75*time.Millisecond)
 		}
+
+		// Keep showing the typing prompt
 		showTypingPrompt()
 	}
 }
@@ -177,6 +205,8 @@ func printHeader() {
 }
 
 func discoverServer() string {
+	fmt.Println("🔍 Scanning for OMSAY servers on your LAN...")
+
 	addr, _ := net.ResolveUDPAddr("udp", "255.255.255.255:9000")
 	conn, _ := net.DialUDP("udp", nil, addr)
 	conn.Write([]byte("DISCOVER"))
@@ -186,32 +216,188 @@ func discoverServer() string {
 	udpConn, _ := net.ListenUDP("udp", listenAddr)
 	defer udpConn.Close()
 
-	udpConn.SetReadDeadline(time.Now().Add(3 * time.Second))
-	buf := make([]byte, 1024)
-	n, _, err := udpConn.ReadFromUDP(buf)
-	if err != nil {
-		color.Yellow("⚠️  No server discovered in LAN. Please enter the IP address of the OMSAY server:")
-		scanner := bufio.NewScanner(os.Stdin)
-		scanner.Scan()
-		input := strings.TrimSpace(scanner.Text())
+	udpConn.SetReadDeadline(time.Now().Add(2 * time.Second))
 
-		if input == "" {
-			color.Red("❌ No server provided. Exiting.")
-			os.Exit(1) // or return ""
+	// Collect all responses
+	serverIPs := []string{}
+	seen := make(map[string]bool)
+
+	buf := make([]byte, 1024)
+	for {
+		n, _, err := udpConn.ReadFromUDP(buf)
+		if err != nil {
+			break
 		}
-		return input
+		ip := strings.TrimSpace(string(buf[:n]))
+		if !seen[ip] {
+			seen[ip] = true
+			serverIPs = append(serverIPs, ip)
+		}
 	}
 
-	return strings.TrimSpace(string(buf[:n]))
+	// If servers found
+	if len(serverIPs) > 0 {
+		// Remove our own IP from list if we're already hosting
+		localIP := getLocalIP()
+		isLocalRunning := isServerRunningLocally()
+
+		filteredIPs := []string{}
+		for _, ip := range serverIPs {
+			if ip != localIP {
+				filteredIPs = append(filteredIPs, ip)
+			}
+		}
+
+		if isLocalRunning {
+			fmt.Printf("✅ OMSAY server already running on your machine at %s. Joining it.\n", localIP)
+			return localIP
+		}
+
+		if len(filteredIPs) == 0 {
+			// Only our server is found
+			fmt.Printf("✅ Detected only your OMSAY server at %s. Joining it.\n", localIP)
+			return localIP
+		}
+
+		// Multiple remote servers found
+		fmt.Println("🌐 Discovered OMSAY servers on LAN:")
+		for i, ip := range filteredIPs {
+			fmt.Printf("  [%d] %s\n", i+1, ip)
+		}
+		fmt.Printf("  [0] Start your own server\n")
+		fmt.Print("Choose server [0]: ")
+		scanner := bufio.NewScanner(os.Stdin)
+		scanner.Scan()
+		choice := strings.TrimSpace(scanner.Text())
+
+		if choice == "" || choice == "0" {
+			if isLocalRunning {
+				fmt.Println("⚠️ Server already running locally. Connecting instead of starting.")
+				return localIP
+			}
+			startLocalServer()
+			return localIP
+		}
+		idx := 0
+		fmt.Sscanf(choice, "%d", &idx)
+		if idx >= 1 && idx <= len(filteredIPs) {
+			return filteredIPs[idx-1]
+		}
+		fmt.Println("⚠️ Invalid choice. Defaulting to your own server.")
+		if isLocalRunning {
+			return localIP
+		}
+		startLocalServer()
+		return localIP
+	}
+
+	// No servers found
+	fmt.Println("⚠️ No OMSAY servers discovered.")
+	fmt.Print("Start your own server? (Y/n): ")
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+	answer := strings.TrimSpace(scanner.Text())
+	if answer == "" || strings.ToLower(answer) == "y" {
+		startLocalServer()
+		time.Sleep(2 * time.Second) // ⏱️ Give it a second to bind to the port
+		return getLocalIP()
+	}
+
+	fmt.Print("Enter OMSAY server IP: ")
+	scanner.Scan()
+	return strings.TrimSpace(scanner.Text())
+}
+
+func isServerRunningLocally() bool {
+	conn, err := net.DialTimeout("tcp", "127.0.0.1:8000", time.Millisecond*500)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
+}
+
+func getExecutableDir() string {
+	exePath, err := os.Executable()
+	if err != nil {
+		return "."
+	}
+	return filepath.Dir(exePath)
+}
+
+func startLocalServer() {
+	exeDir := getExecutableDir()
+	serverPath := filepath.Join(exeDir, "omsay-server.exe")
+
+	if _, err := os.Stat(serverPath); os.IsNotExist(err) {
+		color.Red("❌ omsay-server.exe not found. Please reinstall or check your installation.")
+		os.Exit(1)
+	}
+
+	// Open in new terminal window
+	cmd := exec.Command("cmd", "/C", "start", serverPath)
+	err := cmd.Start()
+	if err != nil {
+		color.Red("❌ Failed to launch omsay-server.exe: %v", err)
+		os.Exit(1)
+	}
+
+	// Give server time to boot up
+	//time.Sleep(2 * time.Second)
+	for i := 0; i < 5; i++ {
+		if isServerRunningLocally() {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
 }
 
 func getLocalIP() string {
-	addrs, _ := net.InterfaceAddrs()
-	for _, addr := range addrs {
-		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
-			return ipnet.IP.String()
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return "127.0.0.1"
+	}
+
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue // interface down or loopback
+		}
+
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+
+			if ip == nil || ip.IsLoopback() {
+				continue
+			}
+
+			ip = ip.To4()
+			if ip == nil {
+				continue // not an IPv4 address
+			}
+
+			// Reject link-local addresses (169.254.x.x)
+			if ip[0] == 169 && ip[1] == 254 {
+				continue
+			}
+
+			// Accept private IPs
+			if ip.IsPrivate() {
+				return ip.String()
+			}
 		}
 	}
+
 	return "127.0.0.1"
 }
 
@@ -220,10 +406,17 @@ func readMessages(conn net.Conn) {
 	for {
 		msg, err := reader.ReadString('\n')
 		if err != nil {
-			color.Red("\nDisconnected from OMSAY server.")
+			color.Red("\n❌ Disconnected from OMSAY server: %v", err)
 			return
 		}
 		msg = strings.TrimSpace(msg)
+		//color.HiBlack("📥 Raw message: %q", msg)
+
+		if msg == "" {
+			showTypingPrompt()
+			continue
+		}
+		conn.Write([]byte(msg + "\n"))
 
 		// Move cursor up and clear the current line
 		fmt.Print("\r\033[K")
@@ -238,12 +431,14 @@ func readMessages(conn net.Conn) {
 
 		timestamp := time.Now().Format("15:04:05")
 
-		if strings.HasPrefix(msg, "[SYSTEM]") {
+		if strings.HasPrefix(msg, "[SYSTEM]") || strings.Contains(msg, " : ") {
 			systemMsg := strings.TrimPrefix(msg, "[SYSTEM]")
-			fmt.Printf("[%s] 📡 %s\n", color.HiBlackString(timestamp), color.YellowString(systemMsg))
+			//fmt.Printf("[%s] 📡 %s\n", color.HiBlackString(timestamp), color.YellowString(systemMsg))
+			fmt.Printf("[%s] 📡 %s", color.HiBlackString(timestamp), color.YellowString(systemMsg))
 			showTypingPrompt()
 		} else {
 			parts := strings.SplitN(msg, ":", 2)
+
 			if len(parts) == 2 {
 				usernamePart := strings.TrimSpace(parts[0])
 				messageBody := strings.TrimSpace(parts[1])
@@ -258,6 +453,7 @@ func readMessages(conn net.Conn) {
 					showNotification("OMSAY", fmt.Sprintf("%s: %s", usernamePart, messageBody))
 				}
 			} else {
+				//color.Red("⚠️  Malformed message received: %q", msg)
 				fmt.Printf("[%s] 📡 %s\n", color.HiBlackString(timestamp), msg)
 			}
 			//playEmbeddedSound(messageSound)
