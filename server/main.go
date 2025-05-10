@@ -58,10 +58,11 @@ func handleClient(conn net.Conn) {
 
 	mu.Lock()
 	clients[conn] = username
-	conn.Write([]byte("[USERNAME]" + username + "\n"))
+	conn.Write([]byte("[USERNAME]" + username + "\n")) // Assign username to the client
 	mu.Unlock()
 
-	joinMsg := fmt.Sprintf("%s joined OMSAY server\n", username)
+	// Notify existing clients about the new user
+	joinMsg := fmt.Sprintf("[SYSTEM]%s joined OMSAY server\n", username)
 	broadcast(joinMsg, nil)
 	fmt.Print(joinMsg)
 
@@ -70,22 +71,24 @@ func handleClient(conn net.Conn) {
 	for {
 		msg, err := reader.ReadString('\n')
 		if err != nil {
-			fmt.Println("[DEBUG] Client read error:", err)
+			fmt.Printf("[DEBUG] Client read error (%s): %v\n", username, err)
 			break
 		}
+
 		msg = strings.TrimSpace(msg)
 		if msg == "" {
 			continue
 		}
-		formatted := fmt.Sprintf("%s : %s\n", username, msg)
-		broadcast(formatted, conn)
+
+		broadcast(username+"|"+msg, conn)
 	}
 
+	// Handle client disconnection
 	mu.Lock()
 	delete(clients, conn)
 	mu.Unlock()
 
-	leaveMsg := fmt.Sprintf("%s left the chat\n", username)
+	leaveMsg := fmt.Sprintf("[SYSTEM]%s left the chat\n", username)
 	broadcast(leaveMsg, nil)
 	fmt.Print(leaveMsg)
 }
@@ -93,9 +96,35 @@ func handleClient(conn net.Conn) {
 func broadcast(msg string, sender net.Conn) {
 	mu.Lock()
 	defer mu.Unlock()
-	for conn := range clients {
+
+	senderName := ""
+	message := ""
+
+	if strings.Contains(msg, "|") {
+		parts := strings.SplitN(msg, "|", 2)
+		senderName = strings.TrimSpace(parts[0])
+		message = strings.TrimSpace(parts[1])
+	}
+
+	for conn, uname := range clients {
+		if conn == sender {
+			//_, err := fmt.Fprintf(conn, "[SELF]%s\n", message)
+			//if err != nil {
+			//	fmt.Printf("[DEBUG] Error sending self-message to %v: %v\n", uname, err)
+			//	conn.Close()
+			//	delete(clients, conn)
+			//}
+			continue
+		}
+
+		// ✅ Send the message to others
 		if conn != sender {
-			conn.Write([]byte(msg))
+			_, err := fmt.Fprintf(conn, "%s : %s\n", senderName, message)
+			if err != nil {
+				fmt.Printf("[DEBUG] Error broadcasting to %v: %v\n", uname, err)
+				conn.Close()
+				delete(clients, conn)
+			}
 		}
 	}
 }

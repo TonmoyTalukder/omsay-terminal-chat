@@ -33,7 +33,7 @@ var messageSound []byte
 
 var myUsername string
 
-const currentVersion = "v25.5.9.0"
+const currentVersion = "v25.5.10.0"
 
 const updateURL = "https://github.com/TonmoyTalukder/omsay-terminal-chat/releases/latest/download/omsay.exe"
 
@@ -156,10 +156,11 @@ func main() {
 		text := scanner.Text()
 		if strings.TrimSpace(text) != "" {
 			// Send the typed text to the server
-			conn.Write([]byte(text + "\n"))
+			//conn.Write([]byte(text + "\n"))
+			conn.Write([]byte(strings.TrimSpace(text) + "\n"))
 		} else {
 			// Handle empty input
-			typeWriter("...", 75*time.Millisecond)
+			typeWriter("...", 10*time.Millisecond)
 		}
 
 		// Keep showing the typing prompt
@@ -174,16 +175,6 @@ func getTerminalWidth() int {
 	}
 	return width
 }
-
-//func printHeader() {
-//	fmt.Print("\033[38;2;244;120;48m")
-//	fmt.Println("")
-//	fmt.Println("╔════════════════════════════════════╗")
-//	fmt.Println("║           WELCOME TO OMSAY         ║")
-//	fmt.Println("╚════════════════════════════════════╝")
-//	fmt.Println("")
-//	fmt.Print("\033[0m")
-//}
 
 func printHeader() {
 	width := getTerminalWidth()
@@ -410,18 +401,16 @@ func readMessages(conn net.Conn) {
 			return
 		}
 		msg = strings.TrimSpace(msg)
-		//color.HiBlack("📥 Raw message: %q", msg)
 
 		if msg == "" {
 			showTypingPrompt()
 			continue
 		}
-		conn.Write([]byte(msg + "\n"))
 
 		// Move cursor up and clear the current line
-		fmt.Print("\r\033[K")
+		fmt.Print("\033[2K\r")
 
-		// Handle username assignment
+		// Handle username assignment from server
 		if strings.HasPrefix(msg, "[USERNAME]") {
 			myUsername = strings.TrimPrefix(msg, "[USERNAME]")
 			fmt.Printf("✓ Assigned username: %s\n", color.HiMagentaString(myUsername))
@@ -429,38 +418,45 @@ func readMessages(conn net.Conn) {
 			continue
 		}
 
-		timestamp := time.Now().Format("15:04:05")
-
-		if strings.HasPrefix(msg, "[SYSTEM]") || strings.Contains(msg, " : ") {
-			systemMsg := strings.TrimPrefix(msg, "[SYSTEM]")
-			//fmt.Printf("[%s] 📡 %s\n", color.HiBlackString(timestamp), color.YellowString(systemMsg))
-			fmt.Printf("[%s] 📡 %s", color.HiBlackString(timestamp), color.YellowString(systemMsg))
+		// Handle self message (server echoes our message back for confirmation)
+		if strings.HasPrefix(msg, "[SELF]") {
+			message := strings.TrimPrefix(msg, "[SELF]")
+			fmt.Printf("[%s] 📡 %s : %s\n",
+				color.HiBlackString(time.Now().Format("15:04:05")),
+				color.CyanString(myUsername),
+				strings.TrimSpace(message))
 			showTypingPrompt()
-		} else {
-			parts := strings.SplitN(msg, ":", 2)
-
-			if len(parts) == 2 {
-				usernamePart := strings.TrimSpace(parts[0])
-				messageBody := strings.TrimSpace(parts[1])
-
-				fmt.Printf("[%s] 📡 %s : %s\n",
-					color.HiBlackString(timestamp),
-					color.CyanString(usernamePart),
-					messageBody)
-
-				if usernamePart != myUsername {
-					playEmbeddedSound(messageSound)
-					showNotification("OMSAY", fmt.Sprintf("%s: %s", usernamePart, messageBody))
-				}
-			} else {
-				//color.Red("⚠️  Malformed message received: %q", msg)
-				fmt.Printf("[%s] 📡 %s\n", color.HiBlackString(timestamp), msg)
-			}
-			//playEmbeddedSound(messageSound)
-			//showNotification("OMSAY", msg)
+			continue
 		}
 
-		// Re-display the prompt after any incoming message
+		// Handle system messages
+		if strings.HasPrefix(msg, "[SYSTEM]") {
+			systemMessage := strings.TrimPrefix(msg, "[SYSTEM]")
+			fmt.Printf("[%s] 📡 %s\n",
+				color.HiBlackString(time.Now().Format("15:04:05")),
+				color.YellowString(systemMessage))
+			showTypingPrompt()
+			continue
+		} else {
+			parts := strings.SplitN(msg, "|", 2)
+			if len(parts) == 2 {
+				username := strings.TrimSpace(parts[0])
+				message := strings.TrimSpace(parts[1])
+
+				if username == myUsername {
+					continue
+				}
+
+				fmt.Printf("[%s] 📡 %s : %s\n",
+					color.HiBlackString(time.Now().Format("15:04:05")),
+					color.CyanString(username),
+					message)
+
+				playEmbeddedSound(messageSound)
+				showNotification("OMSAY", fmt.Sprintf("%s: %s", username, message))
+			}
+		}
+
 		showTypingPrompt()
 	}
 }
@@ -517,13 +513,6 @@ func playEmbeddedSound(data []byte) {
 	<-done
 }
 
-//func extractUsername(msg string) string {
-//	if idx := strings.Index(msg, ":"); idx != -1 {
-//		return strings.TrimSpace(msg[:idx])
-//	}
-//	return myUsername
-//}
-
 func extractUsername(msg string) string {
 	parts := strings.SplitN(msg, ":", 2)
 	if len(parts) > 0 {
@@ -531,13 +520,6 @@ func extractUsername(msg string) string {
 	}
 	return "Unknown"
 }
-
-//func extractMessageBody(msg string) string {
-//	if idx := strings.Index(msg, ":"); idx != -1 {
-//		return strings.TrimSpace(msg[idx+1:])
-//	}
-//	return msg
-//}
 
 func extractMessageBody(msg string) string {
 	parts := strings.SplitN(msg, ":", 2)
