@@ -33,7 +33,7 @@ var messageSound []byte
 
 var myUsername string
 
-const currentVersion = "v25.5.10.2"
+const currentVersion = "v25.5.10.3"
 
 const updateURL = "https://github.com/TonmoyTalukder/omsay-terminal-chat/releases/latest/download/omsay.exe"
 
@@ -60,7 +60,8 @@ func updateExecutable(url string) error {
 
 	// Launch the updater to replace the current exe
 	currExe, _ := os.Executable()
-	err = exec.Command("omsay-updater.exe", tmpFile, currExe).Start()
+	updaterPath := filepath.Join(filepath.Dir(currExe), "omsay-updater.exe")
+	err = exec.Command(updaterPath, tmpFile, currExe).Start()
 	if err != nil {
 		return err
 	}

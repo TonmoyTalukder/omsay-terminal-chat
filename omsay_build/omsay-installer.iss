@@ -1,7 +1,7 @@
 ; OMSAY Terminal Chat Server Installer Script
 [Setup]
 AppName=OMSAY
-AppVersion=25.5.10.2
+AppVersion=25.5.10.3
 DefaultDirName=C:\Users\USER\Apps\OMSAY
 DefaultGroupName=OMSAY
 PrivilegesRequired=admin
