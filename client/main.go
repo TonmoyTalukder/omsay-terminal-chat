@@ -33,7 +33,7 @@ var messageSound []byte
 
 var myUsername string
 
-const currentVersion = "v25.5.10.1"
+const currentVersion = "v25.5.10.2"
 
 const updateURL = "https://github.com/TonmoyTalukder/omsay-terminal-chat/releases/latest/download/omsay.exe"
 
@@ -45,7 +45,8 @@ func updateExecutable(url string) error {
 	defer resp.Body.Close()
 
 	// Write the new version to a temp file
-	tmpFile := "omsay_new.exe"
+	tmpDir := os.TempDir()
+	tmpFile := filepath.Join(tmpDir, "omsay_new.exe")
 	out, err := os.Create(tmpFile)
 	if err != nil {
 		return err
@@ -81,20 +82,23 @@ func checkForUpdate() {
 	latest, _ := io.ReadAll(resp.Body)
 	latestVersion := strings.TrimSpace(string(latest))
 
-	if latestVersion != currentVersion {
-		color.Yellow("🚀 New version available: %s (you have %s)", latestVersion, currentVersion)
-		fmt.Print("⚙️  Updating OMSAY... ")
-
-		err := updateExecutable(updateURL)
-		if err != nil {
-			color.Red("❌ Update failed: %v", err)
-			return
-		}
-
-		color.Green("✅ Updated successfully! Restarting...\n")
-		exec.Command("omsay.exe").Start()
-		os.Exit(0)
+	if latestVersion == currentVersion {
+		// No update needed
+		return
 	}
+
+	color.Yellow("🚀 New version available: %s (you have %s)", latestVersion, currentVersion)
+	fmt.Print("⚙️  Updating OMSAY... ")
+
+	err = updateExecutable(updateURL)
+	if err != nil {
+		color.Red("❌ Update failed: %v", err)
+		return
+	}
+
+	color.Green("✅ Updated successfully! Restarting...\n")
+	exec.Command("omsay.exe").Start()
+	os.Exit(0)
 }
 
 func main() {
