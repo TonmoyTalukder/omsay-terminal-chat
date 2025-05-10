@@ -97,9 +97,22 @@ func broadcast(msg string, sender net.Conn) {
 	mu.Lock()
 	defer mu.Unlock()
 
+	// Check for system messages and send them as-is
+	if strings.HasPrefix(msg, "[SYSTEM]") || strings.HasPrefix(msg, "[USERNAME]") {
+		for conn := range clients {
+			_, err := fmt.Fprintf(conn, "%s\n", msg)
+			if err != nil {
+				fmt.Printf("[DEBUG] Error sending system message: %v\n", err)
+				conn.Close()
+				delete(clients, conn)
+			}
+		}
+		return
+	}
+
+	// Otherwise handle regular messages with format "username|message"
 	senderName := ""
 	message := ""
-
 	if strings.Contains(msg, "|") {
 		parts := strings.SplitN(msg, "|", 2)
 		senderName = strings.TrimSpace(parts[0])
@@ -108,18 +121,15 @@ func broadcast(msg string, sender net.Conn) {
 
 	for conn, uname := range clients {
 		if conn == sender {
-			//_, err := fmt.Fprintf(conn, "[SELF]%s\n", message)
-			//if err != nil {
-			//	fmt.Printf("[DEBUG] Error sending self-message to %v: %v\n", uname, err)
-			//	conn.Close()
-			//	delete(clients, conn)
-			//}
+			_, err := fmt.Fprintf(conn, "[SELF]%s\n", message)
+			if err != nil {
+				fmt.Printf("[DEBUG] Error sending self-message to %v: %v\n", uname, err)
+				conn.Close()
+				delete(clients, conn)
+			}
 			continue
-		}
-
-		// ✅ Send the message to others
-		if conn != sender {
-			_, err := fmt.Fprintf(conn, "%s : %s\n", senderName, message)
+		} else {
+			_, err := fmt.Fprintf(conn, "%s|%s\n", senderName, message)
 			if err != nil {
 				fmt.Printf("[DEBUG] Error broadcasting to %v: %v\n", uname, err)
 				conn.Close()

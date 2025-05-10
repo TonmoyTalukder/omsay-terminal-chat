@@ -33,7 +33,7 @@ var messageSound []byte
 
 var myUsername string
 
-const currentVersion = "v25.5.10.0"
+const currentVersion = "v25.5.10.1"
 
 const updateURL = "https://github.com/TonmoyTalukder/omsay-terminal-chat/releases/latest/download/omsay.exe"
 
@@ -420,11 +420,11 @@ func readMessages(conn net.Conn) {
 
 		// Handle self message (server echoes our message back for confirmation)
 		if strings.HasPrefix(msg, "[SELF]") {
-			message := strings.TrimPrefix(msg, "[SELF]")
-			fmt.Printf("[%s] 📡 %s : %s\n",
-				color.HiBlackString(time.Now().Format("15:04:05")),
-				color.CyanString(myUsername),
-				strings.TrimSpace(message))
+			//message := strings.TrimPrefix(msg, "[SELF]")
+			//fmt.Printf("[%s] 📡 %s : %s\n",
+			//	color.HiBlackString(time.Now().Format("15:04:05")),
+			//	color.CyanString(myUsername),
+			//	strings.TrimSpace(message))
 			showTypingPrompt()
 			continue
 		}
@@ -436,6 +436,7 @@ func readMessages(conn net.Conn) {
 				color.HiBlackString(time.Now().Format("15:04:05")),
 				color.YellowString(systemMessage))
 			showTypingPrompt()
+			fmt.Print("\033[2K\r")
 			continue
 		} else {
 			parts := strings.SplitN(msg, "|", 2)
@@ -452,12 +453,11 @@ func readMessages(conn net.Conn) {
 					color.CyanString(username),
 					message)
 
+				showTypingPrompt()
 				playEmbeddedSound(messageSound)
 				showNotification("OMSAY", fmt.Sprintf("%s: %s", username, message))
 			}
 		}
-
-		showTypingPrompt()
 	}
 }
 
